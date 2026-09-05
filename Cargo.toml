@@ -1,0 +1,69 @@
+[package]
+name = "mlab-proxmox"
+version = "1.0.0"
+edition = "2021"
+description = "CLI over the Proxmox VE REST API, built as a base for passive infrastructure security work"
+license = "MIT"
+repository = "https://github.com/mlab-sh/mlab-proxmox"
+homepage = "https://github.com/mlab-sh/mlab-proxmox"
+readme = "README.md"
+keywords = ["proxmox", "pve", "virtualization", "security", "cli"]
+categories = ["command-line-utilities", "virtualization"]
+
+# Debian packaging. The .deb ships on the GitHub release, nowhere else. The
+# release profile already strips the binary, so CI passes --no-strip: letting
+# cargo-deb strip it again would run the host strip against the aarch64 binary
+# and fail the cross build.
+# cargo-deb rewrites `target/release` to `target/<triple>/release` when it is
+# given --target, so one asset list covers both architectures.
+[package.metadata.deb]
+maintainer = "mlab <hello@mlab.sh>"
+section = "admin"
+priority = "optional"
+extended-description = """\
+mlab-proxmox reads a Proxmox VE cluster over its REST API with a read-only \
+token and turns what it finds into graded security checks: access control, \
+the four firewall levels, guest isolation, backup coverage, patch state, and \
+what changed since the last snapshot. It only reads, and nothing leaves the \
+machine."""
+depends = "$auto"
+assets = [
+    ["target/release/mlab-proxmox", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/mlab-proxmox/README.md", "644"],
+    ["LICENSE", "usr/share/doc/mlab-proxmox/copyright", "644"],
+]
+
+# RPM packaging, for dnf/yum. Unlike cargo-deb, the source paths here are taken
+# literally, so CI stages the cross-built binary at pkg/mlab-proxmox first
+# rather than relying on a target rewrite that would silently package the wrong
+# architecture. auto-req is off for the same reason: deriving requirements
+# means running the host's find-requires against a foreign binary.
+[package.metadata.generate-rpm]
+summary = "CLI over the Proxmox VE API, for passive infrastructure security work"
+license = "MIT"
+auto-req = "disabled"
+assets = [
+    { source = "pkg/mlab-proxmox", dest = "/usr/bin/mlab-proxmox", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/mlab-proxmox/README.md", mode = "644", doc = true },
+    { source = "LICENSE", dest = "/usr/share/licenses/mlab-proxmox/LICENSE", mode = "644", doc = true },
+]
+
+[[bin]]
+name = "mlab-proxmox"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "wrap_help"] }
+colored = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls-native-roots"] }
+rpassword = "7"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
